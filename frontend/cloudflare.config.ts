@@ -13,6 +13,8 @@ export default defineConfig({
     },
     env: {
       ASSETS: bindings.assets(),
+      API_INTERNAL_URL: bindings.text("https://api.ai-offsec.com"),
+      NEXT_PUBLIC_API_URL: bindings.text("https://api.ai-offsec.com"),
     },
   }),
 });
