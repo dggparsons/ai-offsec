@@ -2,7 +2,8 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import desc, select
+from sqlalchemy import cast, desc, select
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -35,7 +36,8 @@ async def list_events(
         .limit(limit)
     )
     if taxonomy:
-        stmt = stmt.where(Event.taxonomy.contains([taxonomy]))
+        # taxonomy is a JSON column — containment needs the JSONB cast.
+        stmt = stmt.where(cast(Event.taxonomy, JSONB).contains([taxonomy]))
     if source_type:
         stmt = stmt.where(Event.source_type == source_type)
     if min_priority is not None:

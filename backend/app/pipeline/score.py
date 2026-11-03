@@ -46,6 +46,8 @@ INTEREST_BOOST = {
     "ai.model.quantisation": 0.08,
     "ai.inference": 0.10,
     "ai.agent": 0.10,
+    "ai.safety": 0.14,
+    "ai.evaluation": 0.08,
     "research.paper": 0.12,
     "research.benchmark": 0.08,
     "research.code": 0.06,
@@ -62,6 +64,24 @@ INTEREST_BOOST = {
 # Bulk CVE feeds (NVD etc.) are background noise unless exploited/PoC'd.
 BULK_SOURCE_TYPES = {"vulnerability_record"}
 BULK_PENALTY = 0.30
+
+# Mission gate (review round 1): events with no AI/LLM connection must never
+# outrank AI news, whatever their CVSS drama. The digest also hard-gates on
+# ai_relevant; this keeps alerts and orderings consistent with that.
+AI_RELEVANCE_BOOST = 0.10
+NON_AI_PENALTY = 0.25
+
+_POC_RE = None
+
+
+def _mentions_poc(body: str) -> bool:
+    """Word-bounded: 'epoch'/'pocket' must not count as PoC (round-1 fix)."""
+    global _POC_RE
+    if _POC_RE is None:
+        import re
+
+        _POC_RE = re.compile(r"\bpoc\b|proof[- ]of[- ]concept", re.I)
+    return bool(_POC_RE.search(body))
 
 
 def recency_score(published_at: datetime | None, now: datetime | None = None) -> float:
@@ -88,7 +108,7 @@ def exploitability_score(identifiers: dict, taxonomy: list[str], body: str, sour
         return 1.0
     score = 0.0
     labels = set(taxonomy)
-    if "offsec.exploit" in labels or "proof-of-concept" in body.lower() or "poc" in body.lower():
+    if "offsec.exploit" in labels or _mentions_poc(body):
         score += 0.4
     if identifiers.get("cve"):
         score += 0.2
@@ -111,6 +131,7 @@ def score_event(
     corroborated: bool,
     source_type: str = "",
     internal_asset_hits: int = 0,
+    ai_relevant: bool = True,
 ) -> tuple[float, dict]:
     labels = set(taxonomy)
     is_bulk = source_type in BULK_SOURCE_TYPES
@@ -135,6 +156,8 @@ def score_event(
     boost = sum(INTEREST_BOOST.get(t, 0.0) for t in labels)
     if is_bulk and exploitability < 0.6:
         boost -= BULK_PENALTY
+    boost += AI_RELEVANCE_BOOST if ai_relevant else -NON_AI_PENALTY
+    components["ai_relevant"] = 1.0 if ai_relevant else 0.0
     components["interest_boost"] = round(boost, 4)
     total = max(0.0, min(1.0, total + boost))
     return round(total, 4), components

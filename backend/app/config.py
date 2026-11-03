@@ -8,13 +8,14 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     s3_endpoint: str = "http://localhost:9000"
-    s3_access_key: str = "minio"
-    s3_secret_key: str = "minio12345"
+    s3_access_key: str = "any"
+    s3_secret_key: str = "any"
     s3_bucket: str = "raw-evidence"
 
     llm_base_url: str = "http://localhost:11434/v1"
     llm_api_key: str = ""
     llm_model: str = "gpt-oss:20b"
+    llm_timeout_sec: int = 300
     embed_model: str = "nomic-embed-text"
     embed_dim: int = 768
     llm_enabled: bool = True
@@ -30,12 +31,14 @@ class Settings(BaseSettings):
 
     github_token: str = ""
     nvd_api_key: str = ""
+    # Never backfill items older than this on first sight — whole historic
+    # catalogues (KEV 2014, blog archives) would swamp the store otherwise.
+    backfill_max_age_days: int = 30
+    # Required for any mutating API call; empty means writes fail closed.
+    api_write_key: str = ""
 
-    processing_version: str = "0.1.0"
+    processing_version: str = "0.2.0"
     cors_origins: str = "http://localhost:3000"
-
-    # Seconds between scheduler sweeps that enqueue due source fetches.
-    scheduler_interval: int = 60
 
     @property
     def cors_origin_list(self) -> list[str]:

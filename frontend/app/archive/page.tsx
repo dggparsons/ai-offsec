@@ -23,7 +23,8 @@ export default async function ArchivePage({
 
       {history.length === 0 ? (
         <p className="text-sm text-neutral-500">
-          No archived digests yet — the first snapshot is generated on the next daily run.
+          No archived digests yet — a snapshot is stored by the 07:03 UTC daily
+          run, or the first time a day&apos;s digest is viewed.
         </p>
       ) : (
         <div className="flex flex-wrap gap-2">

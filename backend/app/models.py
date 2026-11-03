@@ -96,6 +96,8 @@ class Event(Base):
     score_components: Mapped[dict] = mapped_column(JSON, default=dict)
     priority_score: Mapped[float] = mapped_column(Float, default=0.0, index=True)
     is_novel: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Mission gate: AI/LLM-relevant events only on the daily digest.
+    ai_relevant: Mapped[bool] = mapped_column(Boolean, default=False)
     tldr: Mapped[str] = mapped_column(Text, default="")
 
     embedding: Mapped[list[float] | None] = mapped_column(Vector(settings.embed_dim), nullable=True)

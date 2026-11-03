@@ -29,7 +29,7 @@ export default async function SourcesPage() {
                 <td className="px-4 py-2 font-mono text-neutral-300">{s.priority}</td>
                 <td className="px-4 py-2 font-mono text-neutral-300">{s.trust_score.toFixed(2)}</td>
                 <td className="px-4 py-2 text-neutral-400">
-                  {s.last_fetched_at ? new Date(s.last_fetched_at).toLocaleString() : "never"}
+                  {s.last_fetched_at ? new Date(s.last_fetched_at).toLocaleString("en-GB") : "never"}
                 </td>
                 <td className="px-4 py-2">
                   {!s.enabled ? (
@@ -46,7 +46,8 @@ export default async function SourcesPage() {
         </table>
       </div>
       <p className="mt-3 text-xs text-neutral-600">
-        Manage via the API: POST/PATCH /api/sources, force a fetch with POST /api/sources/{"{slug}"}/fetch.
+        Read-only public view of the source registry. Health reflects fetch
+        failures, including feeds that parse but yield zero items.
       </p>
     </div>
   );

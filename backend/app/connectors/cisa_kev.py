@@ -21,6 +21,10 @@ class CisaKevConnector(Connector):
         if resp.status_code == 304:
             return [], {}
         data = resp.json()
+        if not data.get("vulnerabilities"):
+            # A KEV catalogue with zero entries is a broken feed, not a quiet
+            # day — fail loudly so source health shows it.
+            raise RuntimeError("KEV feed returned 0 vulnerabilities")
         envelopes: list[CanonicalEnvelope] = []
         for vuln in data.get("vulnerabilities", []):
             cve = vuln.get("cveID", "")

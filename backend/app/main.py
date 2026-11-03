@@ -1,6 +1,5 @@
 import logging
 import asyncio
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -22,6 +21,9 @@ async def init_db() -> None:
         # create_all never alters existing tables — additive migrations here.
         await conn.execute(text("ALTER TABLE events ADD COLUMN IF NOT EXISTS tldr TEXT DEFAULT ''"))
         await conn.execute(
+            text("ALTER TABLE events ADD COLUMN IF NOT EXISTS ai_relevant BOOLEAN DEFAULT FALSE")
+        )
+        await conn.execute(
             text(
                 "CREATE INDEX IF NOT EXISTS events_search_idx ON events USING gin(search_vector)"
             )
@@ -35,16 +37,30 @@ async def init_db() -> None:
 
 
 async def seed_sources() -> None:
+    """Sync the seed registry into the sources table: insert new slugs and
+    correct a seed's URL when it changes upstream (round-1: arXiv's legacy
+    host, Google Security Blog's move to blog.google). Runtime state (etags,
+    cursors, failure counts) and operator edits to cadence/trust are never
+    touched."""
     from app.connectors.seeds import SEED_SOURCES
 
     async with SessionLocal() as db:
-        existing = await db.scalar(select(func.count()).select_from(Source))
-        if existing:
-            return
+        existing = {s.slug: s for s in (await db.execute(select(Source))).scalars().all()}
+        added = updated = 0
         for data in SEED_SOURCES:
-            db.add(Source(**data))
+            row = existing.get(data["slug"])
+            if row is None:
+                db.add(Source(**data))
+                added += 1
+            elif row.url != data["url"]:
+                log.info("seed sync: %s url %s -> %s", data["slug"], row.url, data["url"])
+                row.url = data["url"]
+                row.etag = None  # validators belong to the old endpoint
+                row.last_modified_header = None
+                updated += 1
         await db.commit()
-        log.info("seeded %d sources", len(SEED_SOURCES))
+        if added or updated:
+            log.info("seed sync: %d added, %d url-corrected", added, updated)
 
 
 @asynccontextmanager
@@ -71,13 +87,10 @@ app.add_middleware(
 
 # Write guard: every mutating request requires the API write key. Fail closed —
 # with no key configured, all writes are denied. Reads stay public by design.
-API_WRITE_KEY = os.environ.get("API_WRITE_KEY", "")
-
-
 @app.middleware("http")
 async def guard_writes_and_headers(request: Request, call_next):
     if request.method not in ("GET", "HEAD", "OPTIONS"):
-        if not API_WRITE_KEY or request.headers.get("x-api-key") != API_WRITE_KEY:
+        if not settings.api_write_key or request.headers.get("x-api-key") != settings.api_write_key:
             return JSONResponse({"detail": "write access denied"}, status_code=403)
     resp = await call_next(request)
     resp.headers.setdefault("X-Content-Type-Options", "nosniff")

@@ -34,6 +34,7 @@ export interface Digest {
   generated_at: string;
   items_requiring_action: number;
   material_developments: number;
+  eligible_not_shown: number;
   suppressed_low_priority: number;
   top_events: IntelEvent[];
   sections: Record<string, IntelEvent[]>;

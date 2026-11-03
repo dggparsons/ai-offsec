@@ -12,16 +12,23 @@ const ACTIONS = [
 
 export function FeedbackButtons({ eventId }: { eventId: string }) {
   const [done, setDone] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   // Public read-only deployments (e.g. ai-offsec.com) don't accept writes.
   if (process.env.NEXT_PUBLIC_READ_ONLY === "true") return null;
 
   async function submit(action: string) {
-    await fetch(`${API_BASE}/api/feedback`, {
+    setFailed(false);
+    const res = await fetch(`${API_BASE}/api/feedback`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ event_id: eventId, action }),
     });
+    // Never show a tick for a write the API rejected (e.g. 403 write guard).
+    if (!res.ok) {
+      setFailed(true);
+      return;
+    }
     setDone(action);
   }
 
@@ -43,7 +50,11 @@ export function FeedbackButtons({ eventId }: { eventId: string }) {
         ))}
       </div>
       <p className="mt-2 text-xs text-neutral-600">
-        Feedback trains the relevance model — it never alters the source record.
+        {failed ? (
+          <span className="text-red-400">Not recorded — the API rejected the write.</span>
+        ) : (
+          "Feedback trains the relevance model — it never alters the source record."
+        )}
       </p>
     </section>
   );

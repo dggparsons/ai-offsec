@@ -14,7 +14,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from mcp.server.fastmcp import FastMCP
-from sqlalchemy import desc, select
+from sqlalchemy import cast, desc, or_, select
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import selectinload
 
 from app.db import SessionLocal
@@ -128,7 +129,12 @@ async def find_model_releases(days: int = 30, limit: int = 15) -> str:
                 select(Event)
                 .where(
                     Event.published_at >= since,
-                    Event.taxonomy.overlap(["ai.model.release", "ai.model.weights", "ai.inference"]),
+                    # taxonomy is a JSON column: JSONB containment per label,
+                    # OR'd for overlap semantics (ARRAY overlap doesn't exist here).
+                    or_(
+                        cast(Event.taxonomy, JSONB).contains([label])
+                        for label in ("ai.model.release", "ai.model.weights", "ai.inference")
+                    ),
                 )
                 .order_by(desc(Event.priority_score))
                 .limit(min(limit, 25))

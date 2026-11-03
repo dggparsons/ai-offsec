@@ -50,7 +50,7 @@ export default function SearchPage() {
             <p className="mt-1 line-clamp-2 text-sm text-neutral-400">{r.snippet}</p>
             <div className="mt-2 text-xs text-neutral-500">
               priority {r.priority_score.toFixed(2)} · rrf {r.rrf_score}
-              {r.published_at && ` · ${new Date(r.published_at).toLocaleString()}`}
+              {r.published_at && ` · ${new Date(r.published_at).toLocaleString("en-GB")}`}
             </div>
           </Link>
         ))}

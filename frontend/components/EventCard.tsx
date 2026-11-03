@@ -42,13 +42,18 @@ export function EventCard({ event }: { event: IntelEvent }) {
         ))}
         {event.version > 1 && (
           <span className="rounded bg-sky-900/60 px-1.5 py-0.5 text-[11px] text-sky-300">
-            updated · v{event.version}
+            updated · version {event.version}
+          </span>
+        )}
+        {event.priority_score >= 0.75 && (
+          <span className="rounded bg-red-900/60 px-1.5 py-0.5 text-[11px] text-red-300">
+            requires action
           </span>
         )}
       </div>
       <div className="mt-2 text-xs text-neutral-500">
         {event.source ?? event.source_type}
-        {event.published_at && ` · ${new Date(event.published_at).toLocaleString()}`}
+        {event.published_at && ` · ${new Date(event.published_at).toLocaleString("en-GB")}`}
       </div>
     </Link>
   );

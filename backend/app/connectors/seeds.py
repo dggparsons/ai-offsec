@@ -66,7 +66,9 @@ SEED_SOURCES: list[dict] = [
         "slug": "google-security-blog",
         "name": "Google Security Blog",
         "connector": "rss",
-        "url": "https://security.googleblog.com/feeds/posts/default",
+        # Moved from security.googleblog.com (301s to blog.google; old
+        # Feedburner feed stopped updating April 2026 — verified 2026-11-03).
+        "url": "https://blog.google/security/rss/",
         "source_type": "security_research",
         "priority": "P1",
         "poll_interval_sec": 3600,
@@ -128,12 +130,60 @@ SEED_SOURCES: list[dict] = [
         "slug": "arxiv-cscr",
         "name": "arXiv cs.CR (Cryptography & Security)",
         "connector": "rss",
-        "url": "http://export.arxiv.org/rss/cs.CR",
+        # Canonical host per arXiv docs (info.arxiv.org/help/rss.html). The
+        # legacy export.arxiv.org host returns a well-formed feed with ZERO
+        # items — fetches "succeeded" while ingesting nothing (round-1).
+        "url": "https://rss.arxiv.org/rss/cs.CR",
         "source_type": "research",
         "priority": "P1",
         "poll_interval_sec": 14400,
         "trust_score": 0.8,
     },
+    # --- P1: AI coverage gaps (verified live 2026-11-03) ---
+    {
+        "slug": "simon-willison",
+        "name": "Simon Willison's Weblog",
+        "connector": "rss",
+        # Fastest independent model-release + prompt-injection coverage.
+        "url": "https://simonwillison.net/atom/everything/",
+        "source_type": "security_research",
+        "priority": "P1",
+        "poll_interval_sec": 3600,
+        "trust_score": 0.85,
+    },
+    {
+        "slug": "embrace-the-red",
+        "name": "Embrace The Red",
+        "connector": "rss",
+        # Prompt-injection / agent-security research — the closest thing to a
+        # dedicated AI-pentest-methodology feed.
+        "url": "https://embracethered.com/blog/index.xml",
+        "source_type": "security_research",
+        "priority": "P1",
+        "poll_interval_sec": 3600,
+        "trust_score": 0.85,
+    },
+    {
+        "slug": "deepmind-blog",
+        "name": "Google DeepMind Blog",
+        "connector": "rss",
+        "url": "https://deepmind.google/blog/rss.xml",
+        "source_type": "vendor_blog",
+        "priority": "P1",
+        "poll_interval_sec": 3600,
+        "trust_score": 0.9,
+    },
+    {
+        "slug": "google-ai-blog",
+        "name": "Google AI Blog",
+        "connector": "rss",
+        "url": "https://blog.google/technology/ai/rss/",
+        "source_type": "vendor_blog",
+        "priority": "P1",
+        "poll_interval_sec": 3600,
+        "trust_score": 0.9,
+    },
     # Note: Anthropic publishes no public RSS (verified 2026-11) — needs an
-    # HTML connector when one is written.
+    # HTML connector when one is written; Simon Willison covers their
+    # releases independently in the meantime.
 ]

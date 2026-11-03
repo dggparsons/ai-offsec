@@ -25,8 +25,8 @@ export default async function EventDetail({
         </div>
         <div className="mt-2 text-sm text-neutral-500">
           {event.source} · v{event.version}
-          {event.published_at && ` · published ${new Date(event.published_at).toLocaleString()}`}
-          {event.modified_at && ` · modified ${new Date(event.modified_at).toLocaleString()}`}
+          {event.published_at && ` · published ${new Date(event.published_at).toLocaleString("en-GB")}`}
+          {event.modified_at && ` · modified ${new Date(event.modified_at).toLocaleString("en-GB")}`}
           {" · TLP:"}{event.tlp}
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5">

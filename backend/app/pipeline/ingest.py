@@ -5,7 +5,7 @@ processing, so every conclusion is auditable back to source bytes.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -67,6 +67,16 @@ async def process_envelope(db: AsyncSession, source: Source, env: CanonicalEnvel
 
     existing = await dedupe.find_existing_event(db, source.id, env.external_id, identifiers)
 
+    # Backfill cap (round-1 end-user fix): on first contact with a source,
+    # don't ingest its whole historic catalogue — only items inside the
+    # window, plus anything corroborating an event we already track.
+    if existing is None and env.published_at is not None:
+        published = env.published_at
+        if published.tzinfo is None:
+            published = published.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) - published > timedelta(days=settings.backfill_max_age_days):
+            return {"status": "skipped", "reason": "older than backfill window"}
+
     if existing and existing.content_hash == content_hash:
         return {"status": "unchanged", "event_id": str(existing.id)}
 
@@ -110,6 +120,11 @@ async def process_envelope(db: AsyncSession, source: Source, env: CanonicalEnvel
     taxonomy = normalize_taxonomy(env.taxonomy, env.title, body)
     event.taxonomy = taxonomy
 
+    from app.pipeline.classify import is_ai_relevant
+
+    ai_relevant = is_ai_relevant(f"{env.title}\n{body}", taxonomy, env.source_type)
+    event.ai_relevant = ai_relevant
+
     priority, components = score.score_event(
         source_authority=source.trust_score,
         taxonomy=taxonomy,
@@ -119,6 +134,7 @@ async def process_envelope(db: AsyncSession, source: Source, env: CanonicalEnvel
         is_novel=is_novel,
         corroborated=corroborated,
         source_type=env.source_type,
+        ai_relevant=ai_relevant,
     )
     event.priority_score = priority
     event.score_components = components
@@ -142,20 +158,29 @@ async def process_envelope(db: AsyncSession, source: Source, env: CanonicalEnvel
     # Analysis: only on new events or real content change (normalised hash).
     changed = is_novel or event.previous_content_hash != event.content_hash
     if changed:
-        vector, _embed_model = await embed.embed_text(f"{event.title}\n\n{body[:4000]}")
-        event.embedding = vector
+        vector, embed_model = await embed.embed_text(f"{event.title}\n\n{body[:4000]}")
+        # Pseudo-hash fallbacks are stored as NULL, not as junk vectors:
+        # the semantic leg of search would otherwise rank noise (round-2).
+        event.embedding = vector if embed_model != "pseudo-hash" else None
 
-        if source.allow_external_llm or _endpoint_is_local():
-            analysis, model_label = await llm.llm_analysis(event.title, body)
+        # LLM analysis only where it earns its queue slot: mission-relevant
+        # or high-priority events. Everything else gets the honest heuristic
+        # TLDR and no fabricated analysis rows.
+        use_llm = (source.allow_external_llm or _endpoint_is_local()) and (
+            ai_relevant or priority >= 0.7
+        )
+        if use_llm:
+            analysis, model_label = await llm.llm_analysis(event.title, body, taxonomy)
         else:
-            analysis, model_label = llm.heuristic_analysis(event.title, body, taxonomy)
+            analysis, model_label = llm.heuristic_analysis(event.title, body, taxonomy), "heuristic"
         event.tldr = str(analysis.pop("tldr", "") or llm.make_tldr(event.title, body))[:400]
-        merged_labels = sorted(set(taxonomy) | set(analysis.pop("taxonomy_labels", []) or []))
-        event.taxonomy = merged_labels
+        llm_labels = [t for t in (analysis.pop("taxonomy_labels", []) or []) if t in llm.ALLOWED_LABELS]
+        event.taxonomy = sorted(set(taxonomy) | set(llm_labels))
         confidence = analysis.pop("confidence", "low")
-        for kind, content in analysis.items():
-            text = "\n".join(content) if isinstance(content, list) else str(content)
-            if not text or text == "None identified.":
+        for kind in llm.ANALYSIS_KINDS:
+            content = analysis.get(kind)
+            text = "\n".join(content) if isinstance(content, list) else str(content or "")
+            if not text or text.startswith("None identified"):
                 continue
             db.add(
                 Analysis(
@@ -163,7 +188,7 @@ async def process_envelope(db: AsyncSession, source: Source, env: CanonicalEnvel
                     kind=kind,
                     content=text[:8000],
                     confidence=confidence,
-                    evidence_event_ids=[str(event.id)],
+                    evidence_event_ids=[],
                     model=model_label,
                     prompt_version=llm.PROMPT_VERSION,
                 )
@@ -203,10 +228,12 @@ def normalize_taxonomy(initial: list[str], title: str, body: str) -> list[str]:
 
 
 def _endpoint_is_local() -> bool:
-    return any(
-        host in settings.llm_base_url
-        for host in ("localhost", "127.0.0.1", "host.docker.internal", "ollama")
-    )
+    """Exact hostname check — a substring test would let any URL containing
+    'ollama' or '127.0.0.1' in a path masquerade as local (round-1 fix)."""
+    from urllib.parse import urlsplit
+
+    host = (urlsplit(settings.llm_base_url).hostname or "").lower()
+    return host in {"localhost", "127.0.0.1", "::1", "host.docker.internal", "ollama"}
 
 
 def _alert_body(event: Event, components: dict) -> str:

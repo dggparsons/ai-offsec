@@ -11,7 +11,7 @@ dashboards, alerts, digests and a read-only MCP interface.
 
 ```
 Official APIs / RSS ─┐
-                     ├─► Ingestion connectors ─► Raw immutable store (MinIO/S3)
+                     ├─► Ingestion connectors ─► Raw immutable store (SeaweedFS, S3 API)
 Web / GitHub / Papers┘            │
                                   ▼
                           Event queue (Redis / arq)
@@ -37,7 +37,19 @@ Three planes, per the design doc:
   hybrid lexical+vector search, dashboard, alert queue, daily digest.
 
 Raw material is stored immutably and separately from LLM-generated analysis;
-every analysis row carries `evidence_event_ids` and a `prompt_version`.
+every analysis row carries a `prompt_version` and the model label that wrote
+it. Analysis rows are only stored when the LLM produced them — the heuristic
+fallback writes a TLDR and nothing else, rather than filler prose.
+
+## Daily digest
+
+The front page is an editorial product, not a raw feed: only AI/LLM-relevant
+events (`event.ai_relevant`, set by the classifier) above a 0.45 quality
+floor, from sources trusted ≥0.5, with a per-section cap and backfill from
+the eligible pool. Generic CVEs with no AI connection stay searchable but
+never occupy the daily list, whatever their CVSS. Counters are truthful:
+"eligible not shown" is reported separately from "suppressed below the bar".
+A snapshot is archived per UTC day (07:03 run, or first view of the day).
 
 ## Quickstart
 
@@ -53,22 +65,32 @@ Then:
 - MCP server (streamable HTTP): http://localhost:8100/mcp
 - SeaweedFS master UI: http://localhost:9333
 
-Seed sources are inserted on first boot (CISA KEV, GitHub Advisories, NVD,
-plus a few RSS feeds). The worker polls due sources every minute; the first
-ingestion cycle runs immediately at startup.
+Seed sources are inserted on first boot: CISA KEV, GitHub Advisories, NVD,
+GitHub releases (llama.cpp/vLLM/Ollama, MCP spec), SecLists Full Disclosure,
+Hacker News, arXiv cs.CR, and AI coverage feeds (OpenAI, Hugging Face,
+DeepMind, Google AI, Google Security Blog, Trail of Bits, Simon Willison,
+Embrace The Red). On later boots the seeder
+inserts newly added seeds and corrects a seed's URL if it changed upstream;
+operator edits to cadence/trust are never touched. The worker polls due
+sources every minute; the first ingestion cycle runs immediately at startup.
+On first contact with a source, items older than `BACKFILL_MAX_AGE_DAYS`
+(default 30) are skipped so historic catalogues don't swamp the store.
 
 To force a fetch of one source:
 
 ```bash
-curl -X POST http://localhost:8000/api/sources/cisa-kev/fetch
+curl -X POST http://localhost:8000/api/sources/cisa-kev/fetch -H "x-api-key: $API_WRITE_KEY"
 ```
 
 ## LLM configuration
 
-The system talks to any OpenAI-compatible endpoint. Default targets local
-Ollama on the host (`gpt-oss:20b` for reasoning, `nomic-embed-text` for
-embeddings). Point `LLM_BASE_URL` at vLLM, llama.cpp's server, or a cloud
-provider instead — see `.env.example`.
+The system talks to any OpenAI-compatible endpoint. The default in
+`.env.example` is the authenticated local model queue on the host
+(`http://host.docker.internal:11435/v1`, model `cockpit/kat8`; the bare
+Ollama port 11434 is retired). Point `LLM_BASE_URL` at vLLM, llama.cpp's
+server, or a cloud provider instead. Embeddings use the same endpoint when
+it serves an embedding model; the queue currently doesn't, so embeddings
+fall back to the deterministic pseudo-hash mode described below.
 
 With `LLM_ENABLED=false` (or when the endpoint is unreachable) the pipeline
 falls back to deterministic heuristics: keyword taxonomy classification,
@@ -85,12 +107,13 @@ backend/
     db.py                async SQLAlchemy engine/session
     models.py            sources, events, entities, analyses, alerts, feedback
     schemas.py           canonical ingestion envelope (Pydantic)
-    connectors/          base + cisa_kev, github_advisories, nvd, rss, github_releases
-    pipeline/            normalize, dedupe, extract, classify, score, llm, embed, ingest
+    connectors/          base + cisa_kev, github_advisories, github_releases, nvd, rss, seeds
+    pipeline/            normalize, dedupe, extract, classify, score, llm, embed, ingest, alerts
     search/hybrid.py     BM25-ish FTS + pgvector, reciprocal-rank fusion
     api/                 REST routes
     worker.py            arq worker: scheduler + fetch/process tasks
     mcp_server.py        read-only MCP tools over streamable HTTP
+  tests/                 pytest: classifier, TLDR, scoring, digest gate
 frontend/                Next.js dashboard (Priority Now, search, event detail)
 ```
 
@@ -132,15 +155,15 @@ curl -X POST localhost:8000/api/sources/cisa-kev/fetch -H "x-api-key: $API_WRITE
 
 | Doc milestone | Where it lands |
 |---|---|
-| Weeks 2–4 source registry + raw ingestion | `app/connectors`, `sources` table, MinIO |
+| Weeks 2–4 source registry + raw ingestion | `app/connectors`, `sources` table, SeaweedFS |
 | Weeks 4–6 canonical schema, parsing, dedupe | `app/schemas.py`, `app/pipeline/{normalize,dedupe}.py` |
 | Weeks 5–8 hybrid search | `app/search/hybrid.py` |
 | Weeks 6–9 LLM extraction + summaries | `app/pipeline/llm.py`, `analyses` table |
 | Weeks 8–10 relevance + alerts | `app/pipeline/score.py`, `alerts` table |
 | Weeks 9–12 dashboard + watchlists | `frontend/` |
 | Weeks 11–14 MCP/API | `app/mcp_server.py`, `app/api/` |
-| Months 4–6 graph + trends | entity/event_entity tables seeded; graph UI TBD |
+| Months 4–6 graph + trends | entity/event_entity tables seeded; graph UI not yet built |
 
 Deliberately stubbed for later: SimHash/MinHash near-dupe detection, change
-significance modelling, OpenCTI/MISP export, analyst-auth RBAC, trend
-clustering UI. Each has a marked extension point in the code.
+significance modelling, OpenCTI/MISP export, analyst-auth RBAC, entity-graph
+and trend-clustering UI. Each has a marked extension point in the code.
