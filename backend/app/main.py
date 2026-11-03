@@ -1,9 +1,11 @@
 import logging
 import asyncio
+import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select, text
 
 from app.config import settings
@@ -61,9 +63,25 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
-    allow_methods=["*"],
+    allow_methods=["GET", "HEAD", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# Write guard: every mutating request requires the API write key. Fail closed —
+# with no key configured, all writes are denied. Reads stay public by design.
+API_WRITE_KEY = os.environ.get("API_WRITE_KEY", "")
+
+
+@app.middleware("http")
+async def guard_writes_and_headers(request: Request, call_next):
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        if not API_WRITE_KEY or request.headers.get("x-api-key") != API_WRITE_KEY:
+            return JSONResponse({"detail": "write access denied"}, status_code=403)
+    resp = await call_next(request)
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("X-Frame-Options", "DENY")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return resp
 
 from app.api import alerts, digest, entities, events, feedback, search, sources  # noqa: E402
 

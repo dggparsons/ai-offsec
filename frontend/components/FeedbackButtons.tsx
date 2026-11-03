@@ -13,6 +13,9 @@ const ACTIONS = [
 export function FeedbackButtons({ eventId }: { eventId: string }) {
   const [done, setDone] = useState<string | null>(null);
 
+  // Public read-only deployments (e.g. ai-offsec.com) don't accept writes.
+  if (process.env.NEXT_PUBLIC_READ_ONLY === "true") return null;
+
   async function submit(action: string) {
     await fetch(`${API_BASE}/api/feedback`, {
       method: "POST",

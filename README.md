@@ -105,6 +105,29 @@ frontend/                Next.js dashboard (Priority Now, search, event detail)
 - Analyst feedback (open/save/escalate/dismiss) is stored separately and will
   be used to learn relevance weights — see `app/pipeline/score.py`.
 
+## Public deployment hardening
+
+The API is exposed publicly via a named cloudflared tunnel
+(`api.ai-offsec.com` → `localhost:8000`). Layers, edge inward:
+
+1. **Cloudflare WAF custom rule** blocks every non-GET/HEAD/OPTIONS request to
+   `api.ai-offsec.com` — mutations never reach the origin.
+2. **Cloudflare rate limit**: 25 req / 10 s / IP on the API host.
+3. **Backend write guard** (`app/main.py`): mutating requests require
+   `x-api-key: $API_WRITE_KEY`; with no key configured, writes fail closed.
+4. **Localhost binding**: all compose ports bind to `127.0.0.1`, so the stack
+   is unreachable from the LAN; the only public path is the tunnel.
+5. **CORS** restricted to the dashboard origins; GET-only methods.
+
+The public frontend is built with `NEXT_PUBLIC_READ_ONLY=true`, which hides
+analyst feedback controls. Run writes locally against `http://localhost:8000`
+with the key, e.g.:
+
+```bash
+curl -X POST localhost:8000/api/sources/cisa-kev/fetch -H "x-api-key: $API_WRITE_KEY"
+```
+
+
 ## Roadmap mapping (from the design doc)
 
 | Doc milestone | Where it lands |
