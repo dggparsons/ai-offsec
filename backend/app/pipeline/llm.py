@@ -57,9 +57,20 @@ ANALYSIS_KINDS = [
 ]
 
 
+_MD_STRIP_RE = None
+
+
 def make_tldr(title: str, body: str) -> str:
-    """Extractive fallback TLDR: first two real sentences of the body."""
-    sentences = [s.strip() for s in body.replace("\n", " ").split(". ") if len(s.strip()) > 25]
+    """Extractive fallback TLDR: first two real sentences of the body,
+    markdown stripped so GHSA headings don't leak into the listing."""
+    import re
+
+    global _MD_STRIP_RE
+    if _MD_STRIP_RE is None:
+        _MD_STRIP_RE = re.compile(r"<[^>]+>|[#>*`]|&#x27;|&quot;|\[([^\]]+)\]\([^)]+\)")
+    text = _MD_STRIP_RE.sub(lambda m: m.group(1) or "", body)
+    text = re.sub(r"(?i)^\s*(summary|impact|executive summary|details|overview)\s*", "", text)
+    sentences = [s.strip() for s in text.replace("\n", " ").split(". ") if len(s.strip()) > 25]
     tldr = ". ".join(sentences[:2]).strip()
     if tldr and not tldr.endswith("."):
         tldr += "."

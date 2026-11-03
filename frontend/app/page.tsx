@@ -4,14 +4,6 @@ import { EventCard } from "@/components/EventCard";
 
 export const dynamic = "force-dynamic";
 
-const SECTION_ORDER: [string, string][] = [
-  ["mcp", "MCP & agent plumbing"],
-  ["models", "Models & inference"],
-  ["research", "Research & papers"],
-  ["exploitation", "Exploitation"],
-  ["enterprise", "Enterprise adoption"],
-];
-
 export default async function Dashboard() {
   let digest;
   let error: string | null = null;
@@ -31,13 +23,13 @@ export default async function Dashboard() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <section className="rounded-lg border border-neutral-800 bg-neutral-900 p-5">
         <div className="flex items-baseline justify-between">
           <h2 className="text-lg font-semibold text-neutral-100">
-            Daily brief{" "}
+            Today&apos;s ten{" "}
             <span className="text-sm font-normal text-neutral-500">
-              generated {new Date(digest.generated_at).toLocaleString()}
+              {new Date(digest.generated_at).toLocaleDateString()}
             </span>
           </h2>
           <Link href="/archive" className="text-sm text-sky-400 hover:underline">
@@ -46,36 +38,28 @@ export default async function Dashboard() {
         </div>
         <p className="mt-1 text-sm text-neutral-400">
           <span className="text-red-300 font-medium">
-            {digest.items_requiring_action} items require action
+            {digest.items_requiring_action} require action
           </span>
-          {" · "}{digest.material_developments} material developments
-          {" · "}{digest.suppressed_low_priority} low-priority updates suppressed
+          {" · "}{digest.suppressed_low_priority} lower-priority updates suppressed
         </p>
-        {digest.emerging_themes.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {digest.emerging_themes.slice(0, 8).map((t) => (
-              <span key={t.label} className="rounded bg-neutral-800 px-2 py-1 text-xs text-neutral-300">
-                {t.label} <span className="text-neutral-500">×{t.count}</span>
-              </span>
-            ))}
-          </div>
-        )}
       </section>
 
-      {SECTION_ORDER.map(([key, title]) => {
-        const events = (digest.sections?.[key] ?? []).slice(0, key === "exploitation" ? 8 : 6);
-        if (events.length === 0) return null;
-        return (
-          <section key={key}>
-            <h2 className="mb-3 text-lg font-semibold text-neutral-100">{title}</h2>
-            <div className="grid gap-3">
-              {events.map((e) => (
-                <EventCard key={e.id} event={e} />
-              ))}
+      {digest.top_events.length === 0 ? (
+        <p className="text-sm text-neutral-500">Nothing cleared the bar today.</p>
+      ) : (
+        <div className="grid gap-3">
+          {digest.top_events.map((e, i) => (
+            <div key={e.id} className="flex gap-3 items-start">
+              <span className="mt-4 w-6 shrink-0 text-right font-mono text-lg text-neutral-600">
+                {i + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <EventCard event={e} />
+              </div>
             </div>
-          </section>
-        );
-      })}
+          ))}
+        </div>
+      )}
     </div>
   );
 }

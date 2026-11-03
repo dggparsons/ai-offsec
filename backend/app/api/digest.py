@@ -92,9 +92,22 @@ async def build_digest(db: AsyncSession, hours: int = 24) -> dict:
         )
     ).scalars().all()
 
-    # Apply the editorial gate, then keep the best 40.
+    # Apply the editorial gate, then pick the day's ten best with a
+    # per-section cap so one firehose topic can't crowd out the rest.
     gated = [(e, section_of(e.taxonomy)) for e in top_all]
-    top = [e for e, s in gated if digest_worthy(e, s)][:40]
+    worthy = [(e, s) for e, s in gated if digest_worthy(e, s)]
+
+    top: list[Event] = []
+    per_section: dict[str, int] = {}
+    for e, s in worthy:
+        if e.priority_score < 0.45:  # quality floor: fewer beats filler
+            continue
+        if per_section.get(s, 0) >= 3:
+            continue
+        top.append(e)
+        per_section[s] = per_section.get(s, 0) + 1
+        if len(top) >= 10:
+            break
 
     actionable = [e for e in top if e.priority_score >= 0.7]
 
@@ -111,7 +124,6 @@ async def build_digest(db: AsyncSession, hours: int = 24) -> dict:
     ).all()
 
     sections: dict[str, list] = {key: [] for key, _t, _p in SECTIONS}
-    sections["other"] = []
     for e in top:
         sections[section_of(e.taxonomy)].append(event_out(e))
 
@@ -119,7 +131,7 @@ async def build_digest(db: AsyncSession, hours: int = 24) -> dict:
         "window_hours": hours,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "items_requiring_action": len(actionable),
-        "material_developments": len([e for e in top if 0.4 <= e.priority_score < 0.7]),
+        "material_developments": len([e for e in top if e.priority_score < 0.7]),
         "suppressed_low_priority": max(total - len(top), 0),
         "top_events": [event_out(e) for e in top],
         "sections": sections,
