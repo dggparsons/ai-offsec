@@ -103,4 +103,37 @@ SEED_SOURCES: list[dict] = [
         "poll_interval_sec": 1800,
         "trust_score": 0.3,
     },
+    # --- P1: AI vendors & research ---
+    {
+        "slug": "huggingface-blog",
+        "name": "Hugging Face Blog",
+        "connector": "rss",
+        "url": "https://huggingface.co/blog/feed.xml",
+        "source_type": "vendor_blog",
+        "priority": "P1",
+        "poll_interval_sec": 3600,
+        "trust_score": 0.9,
+    },
+    {
+        "slug": "openai-news",
+        "name": "OpenAI News",
+        "connector": "rss",
+        "url": "https://openai.com/news/rss.xml",
+        "source_type": "vendor_blog",
+        "priority": "P1",
+        "poll_interval_sec": 3600,
+        "trust_score": 0.95,
+    },
+    {
+        "slug": "arxiv-cscr",
+        "name": "arXiv cs.CR (Cryptography & Security)",
+        "connector": "rss",
+        "url": "http://export.arxiv.org/rss/cs.CR",
+        "source_type": "research",
+        "priority": "P1",
+        "poll_interval_sec": 14400,
+        "trust_score": 0.8,
+    },
+    # Note: Anthropic publishes no public RSS (verified 2026-11) — needs an
+    # HTML connector when one is written.
 ]
