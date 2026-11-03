@@ -16,6 +16,7 @@ def event_out(e: Event, include_body: bool = False) -> dict:
         "taxonomy": e.taxonomy,
         "identifiers": e.identifiers,
         "priority_score": e.priority_score,
+        "tldr": e.tldr,
         "score_components": e.score_components,
         "version": e.version,
         "is_novel": e.is_novel,

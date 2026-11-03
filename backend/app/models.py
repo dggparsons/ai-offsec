@@ -96,6 +96,7 @@ class Event(Base):
     score_components: Mapped[dict] = mapped_column(JSON, default=dict)
     priority_score: Mapped[float] = mapped_column(Float, default=0.0, index=True)
     is_novel: Mapped[bool] = mapped_column(Boolean, default=True)
+    tldr: Mapped[str] = mapped_column(Text, default="")
 
     embedding: Mapped[list[float] | None] = mapped_column(Vector(settings.embed_dim), nullable=True)
     search_vector: Mapped[str | None] = mapped_column(TSVECTOR, nullable=True)
@@ -171,6 +172,18 @@ class Alert(Base):
     channel: Mapped[str] = mapped_column(String(32), default="queued")  # queued / slack / email
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class Digest(Base):
+    """Immutable daily snapshot of the executive digest. Old days are kept
+    ('log the old stuff') so the archive answers 'what mattered on day X?'."""
+
+    __tablename__ = "digests"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    day: Mapped[str] = mapped_column(String(10), unique=True, index=True)  # YYYY-MM-DD (UTC)
+    content: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class Feedback(Base):

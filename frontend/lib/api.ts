@@ -14,6 +14,7 @@ export interface IntelEvent {
   taxonomy: string[];
   identifiers: Record<string, string[]>;
   priority_score: number;
+  tldr: string;
   version: number;
   is_novel: boolean;
   tlp: string;
@@ -35,6 +36,7 @@ export interface Digest {
   material_developments: number;
   suppressed_low_priority: number;
   top_events: IntelEvent[];
+  sections: Record<string, IntelEvent[]>;
   emerging_themes: { label: string; count: number }[];
 }
 
@@ -71,6 +73,9 @@ async function get<T>(path: string, revalidate = 30): Promise<T> {
 
 export const api = {
   digest: () => get<Digest>("/api/digest/daily"),
+  digestHistory: () => get<{ day: string; generated_at: string }[]>("/api/digest/history"),
+  digestDay: (day: string) =>
+    get<{ day: string; content: Digest | null }>(`/api/digest/day/${day}`),
   events: (params = "") => get<IntelEvent[]>(`/api/events${params}`),
   event: (id: string) => get<IntelEvent>(`/api/events/${id}`, 0),
   search: (q: string) =>

@@ -118,6 +118,7 @@ async def process_envelope(db: AsyncSession, source: Source, env: CanonicalEnvel
         published_at=event.published_at,
         is_novel=is_novel,
         corroborated=corroborated,
+        source_type=env.source_type,
     )
     event.priority_score = priority
     event.score_components = components
@@ -148,6 +149,7 @@ async def process_envelope(db: AsyncSession, source: Source, env: CanonicalEnvel
             analysis, model_label = await llm.llm_analysis(event.title, body)
         else:
             analysis, model_label = llm.heuristic_analysis(event.title, body, taxonomy)
+        event.tldr = str(analysis.pop("tldr", "") or llm.make_tldr(event.title, body))[:400]
         merged_labels = sorted(set(taxonomy) | set(analysis.pop("taxonomy_labels", []) or []))
         event.taxonomy = merged_labels
         confidence = analysis.pop("confidence", "low")

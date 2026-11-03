@@ -19,6 +19,8 @@ async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
+        # create_all never alters existing tables — additive migrations here.
+        await conn.execute(text("ALTER TABLE events ADD COLUMN IF NOT EXISTS tldr TEXT DEFAULT ''"))
         await conn.execute(
             text(
                 "CREATE INDEX IF NOT EXISTS events_search_idx ON events USING gin(search_vector)"

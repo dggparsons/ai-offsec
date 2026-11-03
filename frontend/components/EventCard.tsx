@@ -31,6 +31,9 @@ export function EventCard({ event }: { event: IntelEvent }) {
           {event.priority_score.toFixed(2)}
         </span>
       </div>
+      {event.tldr && (
+        <p className="mt-2 text-sm text-neutral-400 leading-relaxed">{event.tldr}</p>
+      )}
       <div className="mt-2 flex flex-wrap gap-1.5">
         {event.taxonomy.slice(0, 5).map((t) => (
           <span key={t} className="rounded bg-neutral-800 px-1.5 py-0.5 text-[11px] text-neutral-400">

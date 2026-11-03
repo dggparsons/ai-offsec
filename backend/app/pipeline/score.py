@@ -1,6 +1,9 @@
 """Relevance scoring.
 
-First-generation weighted heuristic (weights from the design doc). The
+First-generation weighted heuristic (weights from the design doc), tuned by
+editorial interest: bulk vulnerability records are suppressed unless they
+carry exploitation signal (KEV membership, public PoC), while model releases,
+research, MCP changes and AI-assisted tradecraft get boosted. The
 `learn_from_feedback` extension point will refit these weights from analyst
 actions (open/save/escalate/dismiss) once enough feedback accumulates.
 """
@@ -35,6 +38,31 @@ ENTERPRISE_LABELS = {
     "enterprise.governance",
 }
 
+# Editorial interest: what a reader of this platform actually wants to see.
+INTEREST_BOOST = {
+    "ai.model.release": 0.18,
+    "ai.model.weights": 0.14,
+    "ai.model.architecture": 0.08,
+    "ai.model.quantisation": 0.08,
+    "ai.inference": 0.10,
+    "ai.agent": 0.10,
+    "research.paper": 0.12,
+    "research.benchmark": 0.08,
+    "research.code": 0.06,
+    "mcp.specification": 0.12,
+    "mcp.server": 0.08,
+    "mcp.security": 0.14,
+    "offsec.ai-assisted": 0.14,
+    "offsec.exploit": 0.10,
+    "offsec.exploit-technique": 0.08,
+    "enterprise.deployment": 0.08,
+    "enterprise.case-study": 0.06,
+}
+
+# Bulk CVE feeds (NVD etc.) are background noise unless exploited/PoC'd.
+BULK_SOURCE_TYPES = {"vulnerability_record"}
+BULK_PENALTY = 0.30
+
 
 def recency_score(published_at: datetime | None, now: datetime | None = None) -> float:
     if published_at is None:
@@ -54,7 +82,10 @@ def recency_score(published_at: datetime | None, now: datetime | None = None) ->
     return 0.1
 
 
-def exploitability_score(identifiers: dict, taxonomy: list[str], body: str) -> float:
+def exploitability_score(identifiers: dict, taxonomy: list[str], body: str, source_type: str = "") -> float:
+    # KEV membership IS the exploitation signal.
+    if source_type == "exploited_vulnerability":
+        return 1.0
     score = 0.0
     labels = set(taxonomy)
     if "offsec.exploit" in labels or "proof-of-concept" in body.lower() or "poc" in body.lower():
@@ -78,20 +109,34 @@ def score_event(
     published_at: datetime | None,
     is_novel: bool,
     corroborated: bool,
+    source_type: str = "",
     internal_asset_hits: int = 0,
 ) -> tuple[float, dict]:
     labels = set(taxonomy)
+    is_bulk = source_type in BULK_SOURCE_TYPES
+    exploitability = exploitability_score(identifiers, taxonomy, body, source_type)
     components = {
         "source_authority": source_authority,
-        "offensive_relevance": 1.0 if labels & OFFENSIVE_LABELS else 0.15,
+        # Bulk CVE records are only interesting with real exploitation signal.
+        "offensive_relevance": (
+            (1.0 if exploitability >= 0.6 else 0.15)
+            if is_bulk
+            else (1.0 if labels & OFFENSIVE_LABELS else 0.15)
+        ),
         "enterprise_relevance": 1.0 if labels & ENTERPRISE_LABELS else 0.1,
         "novelty": 1.0 if is_novel else 0.2,
-        "exploitability": exploitability_score(identifiers, taxonomy, body),
+        "exploitability": exploitability,
         "internal_asset_relevance": min(internal_asset_hits * 0.5, 1.0),
         "corroboration": 1.0 if corroborated else 0.0,
         "recency": recency_score(published_at),
     }
     total = sum(WEIGHTS[k] * v for k, v in components.items())
+
+    boost = sum(INTEREST_BOOST.get(t, 0.0) for t in labels)
+    if is_bulk and exploitability < 0.6:
+        boost -= BULK_PENALTY
+    components["interest_boost"] = round(boost, 4)
+    total = max(0.0, min(1.0, total + boost))
     return round(total, 4), components
 
 

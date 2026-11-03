@@ -17,7 +17,9 @@ from sqlalchemy import select
 from app.config import settings
 from app.connectors.base import build_connector
 from app.db import SessionLocal, engine
-from app.models import Base, Source
+from app.models import Base, Event, Source
+from app.pipeline import llm as llm_mod
+from app.pipeline import score as scorer
 from app.pipeline.ingest import process_envelope
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -89,6 +91,45 @@ async def sweep_due_sources(ctx) -> dict:
     return {"enqueued": enqueued}
 
 
+async def generate_daily_digest(ctx) -> dict:
+    """Snapshot today's digest into the digests table (daily archive)."""
+    from app.api.digest import snapshot_today
+
+    async with SessionLocal() as db:
+        content = await snapshot_today(db)
+    log.info("digest snapshot: %s actionable, %s material", content["items_requiring_action"], content["material_developments"])
+    return {"status": "ok", "actionable": content["items_requiring_action"]}
+
+
+async def rescore_events(ctx) -> dict:
+    """One-off maintenance: rescore events under the current scoring weights
+    and backfill missing TLDRs (heuristic, no LLM calls). Safe to re-run."""
+    rescored = backfilled = 0
+    async with SessionLocal() as db:
+        events = (await db.execute(select(Event))).scalars().all()
+        for e in events:
+            priority, components = scorer.score_event(
+                source_authority=e.source_confidence,
+                taxonomy=e.taxonomy or [],
+                identifiers=e.identifiers or {},
+                body=e.body_text or "",
+                published_at=e.published_at,
+                is_novel=e.is_novel,
+                corroborated=False,
+                source_type=e.source_type,
+            )
+            if priority != e.priority_score:
+                e.priority_score = priority
+                e.score_components = components
+                rescored += 1
+            if not e.tldr:
+                e.tldr = llm_mod.make_tldr(e.title or "", e.body_text or "")
+                backfilled += 1
+        await db.commit()
+    log.info("rescore: %d rescored, %d tldr backfilled", rescored, backfilled)
+    return {"rescored": rescored, "backfilled": backfilled}
+
+
 async def startup(ctx):
     # Worker owns schema creation when it beats the API to boot.
     async with engine.begin() as conn:
@@ -103,6 +144,7 @@ async def startup(ctx):
     await asyncio.to_thread(ensure_bucket)
     # Kick off an immediate first sweep so fresh installs ingest right away.
     await ctx["redis"].enqueue_job("sweep_due_sources")
+    await ctx["redis"].enqueue_job("rescore_events")
 
 
 async def shutdown(ctx):
@@ -110,8 +152,11 @@ async def shutdown(ctx):
 
 
 class WorkerSettings:
-    functions = [fetch_source, sweep_due_sources]
-    cron_jobs = [cron(sweep_due_sources, second={0})]  # sweep once per minute
+    functions = [fetch_source, sweep_due_sources, generate_daily_digest, rescore_events]
+    cron_jobs = [
+        cron(sweep_due_sources, second={0}),       # sweep once per minute
+        cron(generate_daily_digest, hour={7}, minute={3}),  # daily snapshot, 07:03 UTC
+    ]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(settings.redis_url)

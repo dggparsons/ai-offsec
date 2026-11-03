@@ -60,7 +60,7 @@ services:
         condition: service_healthy
       seaweedfs:
         condition: service_started
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: sh -c "PYTHONPATH=/app uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
 
   worker:
@@ -78,7 +78,7 @@ services:
     depends_on:
       backend:
         condition: service_started
-    command: arq app.worker.WorkerSettings
+    command: sh -c "PYTHONPATH=/app arq app.worker.WorkerSettings"
 
   mcp:
     build: ./backend
@@ -97,7 +97,7 @@ services:
     depends_on:
       backend:
         condition: service_started
-    command: python -m app.mcp_server
+    command: sh -c "PYTHONPATH=/app python -m app.mcp_server"
 
   frontend:
     build: ./frontend
