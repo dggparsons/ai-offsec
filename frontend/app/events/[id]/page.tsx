@@ -37,7 +37,7 @@ export default async function EventDetail({
           rel="noreferrer"
           className="mt-3 inline-block text-sm text-sky-400 hover:underline"
         >
-          Source evidence ↗
+          Read the original ↗
         </a>
       </div>
 

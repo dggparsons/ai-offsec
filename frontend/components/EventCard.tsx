@@ -12,11 +12,12 @@ const LABEL_KINDS: Record<string, string> = {
 
 export function EventCard({ event }: { event: IntelEvent }) {
   return (
-    <Link
-      href={`/events/${event.id}`}
-      className="block rounded-lg border border-white/10 bg-white/[0.04] p-4 hover:border-white/25"
-    >
-      <h3 className="font-medium text-neutral-100 leading-snug">{event.title}</h3>
+    <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4 hover:border-white/25">
+      <h3 className="font-medium text-neutral-100 leading-snug">
+        <a href={event.source_url} target="_blank" rel="noreferrer" className="hover:text-sky-300">
+          {event.title} ↗
+        </a>
+      </h3>
       {event.tldr && (
         <p className="mt-2 text-sm text-neutral-400 leading-relaxed">{event.tldr}</p>
       )}
@@ -32,11 +33,16 @@ export function EventCard({ event }: { event: IntelEvent }) {
           </span>
         )}
       </div>
-      <div className="mt-2 text-xs text-neutral-500">
-        {event.source ?? event.source_type}
-        {event.published_at && ` · ${new Date(event.published_at).toLocaleString("en-GB")}`}
+      <div className="mt-2 flex items-center justify-between text-xs text-neutral-500">
+        <span>
+          {event.source ?? event.source_type}
+          {event.published_at && ` · ${new Date(event.published_at).toLocaleString("en-GB")}`}
+        </span>
+        <Link href={`/events/${event.id}`} className="text-sky-400 hover:underline">
+          analysis →
+        </Link>
       </div>
-    </Link>
+    </div>
   );
 }
 
