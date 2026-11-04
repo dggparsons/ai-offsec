@@ -26,13 +26,14 @@ from app.models import Digest, Entity, Event, EventEntity
 router = APIRouter(prefix="/api/digest", tags=["digest"])
 
 # Section definitions: (key, title, taxonomy prefixes that qualify).
-# Order matters only for display; gating is identical for every section.
+# Order is classification precedence (first match wins); display order is
+# the frontend's business. Titles are reader-facing, in the owner's language.
 SECTIONS = [
     ("mcp", "MCP & agent plumbing", ("mcp.",)),
-    ("safety", "Safety, jailbreaks & evals", ("ai.safety", "ai.evaluation")),
-    ("models", "Models & inference", ("ai.model.", "ai.inference", "ai.agent")),
+    ("safety", "Jailbreaks, red-teaming & evals", ("ai.safety", "ai.evaluation")),
+    ("models", "Models & local LLMs", ("ai.model.", "ai.inference", "ai.agent")),
     ("research", "Research & papers", ("research.",)),
-    ("exploitation", "Exploitation", ("offsec.",)),
+    ("exploitation", "CVEs & exploits in AI software", ("offsec.",)),
     ("enterprise", "Enterprise adoption", ("enterprise.", "vendor.")),
 ]
 

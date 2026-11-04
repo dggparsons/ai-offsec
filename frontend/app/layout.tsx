@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <header className="border-b border-neutral-800 px-6 py-3 flex items-center gap-8">
+        <header className="border-b border-white/10 px-6 py-3 flex items-center gap-8">
           <Link href="/" className="font-semibold text-neutral-50">
             AI News <span className="text-sky-400">Intel</span>
           </Link>

@@ -8,9 +8,9 @@ export default async function SourcesPage() {
   return (
     <div>
       <h1 className="mb-4 text-xl font-semibold text-neutral-100">Source registry</h1>
-      <div className="overflow-x-auto rounded-lg border border-neutral-800">
+      <div className="overflow-x-auto rounded-lg border border-white/10">
         <table className="w-full text-sm">
-          <thead className="bg-neutral-900 text-left text-neutral-400">
+          <thead className="bg-white/5 text-left text-neutral-400">
             <tr>
               <th className="px-4 py-2">Source</th>
               <th className="px-4 py-2">Priority</th>

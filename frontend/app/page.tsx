@@ -4,6 +4,16 @@ import { EventCard } from "@/components/EventCard";
 
 export const dynamic = "force-dynamic";
 
+// Display order and reader-facing headings for the digest sections.
+const SECTION_ORDER: [string, string][] = [
+  ["models", "Models & local LLMs"],
+  ["exploitation", "CVEs & exploits in AI software"],
+  ["mcp", "MCP & agent plumbing"],
+  ["safety", "Jailbreaks, red-teaming & evals"],
+  ["research", "Research & papers"],
+  ["enterprise", "Enterprise adoption"],
+];
+
 export default async function Dashboard() {
   let digest;
   let error: string | null = null;
@@ -22,83 +32,78 @@ export default async function Dashboard() {
     );
   }
 
-  // Section title per event id, from the digest's section buckets.
-  const sectionTitles: Record<string, string> = {
-    mcp: "MCP & agent plumbing",
-    safety: "Safety, jailbreaks & evals",
-    models: "Models & inference",
-    research: "Research & papers",
-    exploitation: "Exploitation",
-    enterprise: "Enterprise adoption",
-  };
-  const sectionOf = new Map<string, string>();
-  for (const [key, events] of Object.entries(digest.sections)) {
-    const title = sectionTitles[key];
-    if (title) for (const e of events) sectionOf.set(e.id, title);
-  }
+  const nonEmptySections = SECTION_ORDER.filter(
+    ([key]) => (digest.sections[key] ?? []).length > 0
+  );
+  const shown = new Set(
+    nonEmptySections.flatMap(([key]) => digest.sections[key].map((e) => e.id))
+  );
+  const uncategorised = digest.top_events.filter((e) => !shown.has(e.id));
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-lg border border-neutral-800 bg-neutral-900 p-5">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-lg font-semibold text-neutral-100">
-            Today&apos;s ten{" "}
-            <span className="text-sm font-normal text-neutral-500">
-              {new Date(digest.generated_at).toLocaleDateString("en-GB")}
-            </span>
-          </h2>
-          <Link href="/archive" className="text-sm text-sky-400 hover:underline">
-            Archive →
-          </Link>
-        </div>
-        <p className="mt-1 text-sm text-neutral-400">
-          <span className="text-red-300 font-medium">
-            {digest.items_requiring_action} require action
+    <div className="space-y-8">
+      <section className="flex items-baseline justify-between">
+        <h2 className="text-xl font-semibold text-neutral-100">
+          Today&apos;s read{" "}
+          <span className="text-sm font-normal text-neutral-400">
+            {new Date(digest.generated_at).toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
           </span>
-          {" · "}{digest.material_developments} material developments
-          {" · "}{digest.eligible_not_shown} eligible not shown
-          {" · "}{digest.suppressed_low_priority} suppressed below the bar
-        </p>
+        </h2>
+        <Link href="/archive" className="text-sm text-sky-400 hover:underline">
+          Archive →
+        </Link>
       </section>
 
+      {digest.top_events.length === 0 ? (
+        <p className="text-sm text-neutral-400">Nothing cleared the bar today.</p>
+      ) : (
+        nonEmptySections.map(([key, title]) => (
+          <section key={key}>
+            <h3 className="mb-3 border-b border-white/10 pb-1.5 text-sm font-semibold uppercase tracking-wide text-neutral-400">
+              {title}
+            </h3>
+            <div className="grid gap-3">
+              {digest.sections[key].map((e) => (
+                <EventCard key={e.id} event={e} />
+              ))}
+            </div>
+          </section>
+        ))
+      )}
+
+      {uncategorised.length > 0 && (
+        <section>
+          <h3 className="mb-3 border-b border-white/10 pb-1.5 text-sm font-semibold uppercase tracking-wide text-neutral-400">
+            Also today
+          </h3>
+          <div className="grid gap-3">
+            {uncategorised.map((e) => (
+              <EventCard key={e.id} event={e} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {digest.emerging_themes.length > 0 && (
-        <section className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">
-            Emerging themes
-          </h2>
+        <section>
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-400">
+            Being talked about
+          </h3>
           <div className="flex flex-wrap gap-1.5">
             {digest.emerging_themes.map((t) => (
               <span
                 key={t.label}
-                className="rounded bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300"
+                className="rounded bg-white/5 px-2 py-0.5 text-xs text-neutral-300"
               >
                 {t.label} <span className="text-neutral-500">×{t.count}</span>
               </span>
             ))}
           </div>
         </section>
-      )}
-
-      {digest.top_events.length === 0 ? (
-        <p className="text-sm text-neutral-500">Nothing cleared the bar today.</p>
-      ) : (
-        <div className="grid gap-3">
-          {digest.top_events.map((e, i) => (
-            <div key={e.id} className="flex gap-3 items-start">
-              <span className="mt-4 w-6 shrink-0 text-right font-mono text-lg text-neutral-600">
-                {i + 1}
-              </span>
-              <div className="min-w-0 flex-1">
-                {sectionOf.get(e.id) && (
-                  <div className="mb-1 text-[11px] uppercase tracking-wide text-neutral-500">
-                    {sectionOf.get(e.id)}
-                  </div>
-                )}
-                <EventCard event={e} />
-              </div>
-            </div>
-          ))}
-        </div>
       )}
     </div>
   );

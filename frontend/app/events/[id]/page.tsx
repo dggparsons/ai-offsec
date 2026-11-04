@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
-import { AnalysisBlock, priorityBadge } from "@/components/EventCard";
+import { AnalysisBlock } from "@/components/EventCard";
 import { FeedbackButtons } from "@/components/FeedbackButtons";
 
 export const dynamic = "force-dynamic";
@@ -17,12 +17,7 @@ export default async function EventDetail({
   return (
     <div className="space-y-6">
       <div>
-        <div className="flex items-start justify-between gap-4">
-          <h1 className="text-xl font-semibold text-neutral-100 leading-snug">{event.title}</h1>
-          <span className={`shrink-0 rounded px-2 py-1 text-sm font-mono ${priorityBadge(event.priority_score)}`}>
-            {event.priority_score.toFixed(2)}
-          </span>
-        </div>
+        <h1 className="text-xl font-semibold text-neutral-100 leading-snug">{event.title}</h1>
         <div className="mt-2 text-sm text-neutral-500">
           {event.source} · v{event.version}
           {event.published_at && ` · published ${new Date(event.published_at).toLocaleString("en-GB")}`}
@@ -71,7 +66,7 @@ export default async function EventDetail({
       {event.body_text && (
         <section>
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">Extracted text</h2>
-          <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-neutral-800 bg-neutral-900 p-4 text-xs text-neutral-400">
+          <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-white/[0.04] p-4 text-xs text-neutral-400">
             {event.body_text}
           </pre>
         </section>

@@ -44,13 +44,12 @@ export default function SearchPage() {
           <Link
             key={r.id}
             href={`/events/${r.id}`}
-            className="block rounded-lg border border-neutral-800 bg-neutral-900 p-4 hover:border-neutral-600"
+            className="block rounded-lg border border-white/10 bg-white/[0.04] p-4 hover:border-white/25"
           >
             <h3 className="font-medium text-neutral-100">{r.title}</h3>
             <p className="mt-1 line-clamp-2 text-sm text-neutral-400">{r.snippet}</p>
             <div className="mt-2 text-xs text-neutral-500">
-              priority {r.priority_score.toFixed(2)} · rrf {r.rrf_score}
-              {r.published_at && ` · ${new Date(r.published_at).toLocaleString("en-GB")}`}
+              {r.published_at && new Date(r.published_at).toLocaleString("en-GB")}
             </div>
           </Link>
         ))}
